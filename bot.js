@@ -31,7 +31,7 @@ client.on("ready", () => {
 client.on("message", async (message) => {
   console.log(`Message received: ${message.body}`);
 
-  if (message.body.toLowerCase().startsWith("gpt")) {
+  if (message.body.toLowerCase().startsWith("/gpt")) {
     try {
       const prompt = message.body.substring(2).trim(); // Remove "bd" and trim whitespace
       const result = await model.generateContent(prompt);
@@ -40,7 +40,7 @@ client.on("message", async (message) => {
       console.error("Error generating content:", error);
       message.reply("Sorry, I couldn't generate a response.");
     }
-  } else if (message.body.toLowerCase().startsWith("league")) {
+  } else if (message.body.toLowerCase().startsWith("/league")) {
     fs.readdir(leagueDir, async (err, files) => {
       if (err) {
         console.error("Error reading the league directory:", err);
@@ -66,7 +66,7 @@ client.on("message", async (message) => {
       const media = new MessageMedia("audio/mp3", fileData, randomFile);
       await client.sendMessage(message.from, media);
     });
-  } else if (message.body.toLowerCase().startsWith("huh")) {
+  } else if (message.body.toLowerCase().startsWith("/huh")) {
     fs.readdir(memes, async (err, files) => {
       if (err) {
         console.error("Error reading the league directory:", err);
