@@ -14,6 +14,10 @@ const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 // Initialize the client with LocalAuth for persistent login
 const client = new Client({
   authStrategy: new LocalAuth(),
+  puppeteer: {
+    headless: true, // Run in headless mode
+    args: ["--no-sandbox", "--disable-setuid-sandbox"], // Useful for running in environments without GUI
+  },
 });
 
 // Generate a QR code for authentication
@@ -26,7 +30,6 @@ client.on("qr", (qr) => {
 client.on("ready", () => {
   console.log("WhatsApp bot is ready!");
 });
-
 // Respond to incoming messages
 client.on("message", async (message) => {
   console.log(`Message received: ${message.body}`);
@@ -41,13 +44,13 @@ client.on("message", async (message) => {
       message.reply("Sorry, I couldn't generate a response.");
     }
   } else if (message.body.toLowerCase().startsWith("/league")) {
+    // Handle league-related audio files
     fs.readdir(leagueDir, async (err, files) => {
       if (err) {
         console.error("Error reading the league directory:", err);
         return;
       }
 
-      // Filter only mp3 files
       const mp3Files = files.filter((file) => path.extname(file) === ".mp3");
 
       if (mp3Files.length === 0) {
@@ -55,40 +58,32 @@ client.on("message", async (message) => {
         return;
       }
 
-      // Pick a random file
       const randomFile = mp3Files[Math.floor(Math.random() * mp3Files.length)];
       const filePath = path.join(leagueDir, randomFile);
-
-      // Read the file as base64
       const fileData = fs.readFileSync(filePath, { encoding: "base64" });
 
-      // Send the audio file
       const media = new MessageMedia("audio/mp3", fileData, randomFile);
       await client.sendMessage(message.from, media);
     });
   } else if (message.body.toLowerCase().startsWith("/huh")) {
+    // Handle memes
     fs.readdir(memes, async (err, files) => {
       if (err) {
-        console.error("Error reading the league directory:", err);
+        console.error("Error reading the memes directory:", err);
         return;
       }
 
-      // Filter only mp3 files
       const mp3Files = files.filter((file) => path.extname(file) === ".mp3");
 
       if (mp3Files.length === 0) {
-        message.reply("No MP3 files found in the league folder.");
+        message.reply("No MP3 files found in the memes folder.");
         return;
       }
 
-      // Pick a random file
       const randomFile = mp3Files[Math.floor(Math.random() * mp3Files.length)];
       const filePath = path.join(memes, randomFile);
-
-      // Read the file as base64
       const fileData = fs.readFileSync(filePath, { encoding: "base64" });
 
-      // Send the audio file
       const media = new MessageMedia("audio/mp3", fileData, randomFile);
       await client.sendMessage(message.from, media);
     });
