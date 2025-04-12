@@ -1,94 +1,101 @@
-require("dotenv").config();
-const { Client, LocalAuth, MessageMedia } = require("whatsapp-web.js");
-const qrcode = require("qrcode-terminal");
-const { GoogleGenerativeAI } = require("@google/generative-ai");
-const fs = require("fs");
-const path = require("path");
+require('dotenv').config();
+const { Client, LocalAuth } = require('whatsapp-web.js');
+const qrcode = require('qrcode-terminal');
+const sqlite3 = require('sqlite3').verbose();
 
-const leagueDir = path.join(__dirname, "league"); // Path to the 'league' folder
-const memes = path.join(__dirname, "memes"); // Path to the 'league' folder
-
-const genAI = new GoogleGenerativeAI(process.env.AI);
-const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
-
-// Initialize the client with LocalAuth for persistent login
-const client = new Client({
-  authStrategy: new LocalAuth(),
-  puppeteer: {
-    headless: true, // Run in headless mode
-    args: ["--no-sandbox", "--disable-setuid-sandbox"], // Useful for running in environments without GUI
-  },
-});
-
-// Generate a QR code for authentication
-client.on("qr", (qr) => {
-  qrcode.generate(qr, { small: true });
-  console.log("QR Code generated, scan it with WhatsApp.");
-});
-
-// Log when the client is ready
-client.on("ready", () => {
-  console.log("WhatsApp bot is ready!");
-});
-// Respond to incoming messages
-client.on("message", async (message) => {
-  console.log(`Message received: ${message.body}`);
-
-  if (message.body.toLowerCase().startsWith("/gpt")) {
-    try {
-      const prompt = message.body.substring(2).trim(); // Remove "bd" and trim whitespace
-      const result = await model.generateContent(prompt);
-      message.reply(result.response.text());
-    } catch (error) {
-      console.error("Error generating content:", error);
-      message.reply("Sorry, I couldn't generate a response.");
-    }
-  } else if (message.body.toLowerCase().startsWith("/league")) {
-    // Handle league-related audio files
-    fs.readdir(leagueDir, async (err, files) => {
-      if (err) {
-        console.error("Error reading the league directory:", err);
-        return;
+// Initialize SQLite database with your CARMDI table
+const db = new sqlite3.Database('./your_database.db', (err) => {
+  if (err) {
+    console.error('Error opening database:', err.message);
+  } else {
+    console.log('Connected to the vehicle database');
+    // Verify table exists (optional)
+    db.get(
+      "SELECT name FROM sqlite_master WHERE type='table' AND name='CARMDI'",
+      (err, row) => {
+        if (err) {
+          console.error('Error checking table:', err);
+        } else if (!row) {
+          console.error('CARMDI table not found in the database');
+        }
       }
-
-      const mp3Files = files.filter((file) => path.extname(file) === ".mp3");
-
-      if (mp3Files.length === 0) {
-        message.reply("No MP3 files found in the league folder.");
-        return;
-      }
-
-      const randomFile = mp3Files[Math.floor(Math.random() * mp3Files.length)];
-      const filePath = path.join(leagueDir, randomFile);
-      const fileData = fs.readFileSync(filePath, { encoding: "base64" });
-
-      const media = new MessageMedia("audio/mp3", fileData, randomFile);
-      await client.sendMessage(message.from, media);
-    });
-  } else if (message.body.toLowerCase().startsWith("/huh")) {
-    // Handle memes
-    fs.readdir(memes, async (err, files) => {
-      if (err) {
-        console.error("Error reading the memes directory:", err);
-        return;
-      }
-
-      const mp3Files = files.filter((file) => path.extname(file) === ".mp3");
-
-      if (mp3Files.length === 0) {
-        message.reply("No MP3 files found in the memes folder.");
-        return;
-      }
-
-      const randomFile = mp3Files[Math.floor(Math.random() * mp3Files.length)];
-      const filePath = path.join(memes, randomFile);
-      const fileData = fs.readFileSync(filePath, { encoding: "base64" });
-
-      const media = new MessageMedia("audio/mp3", fileData, randomFile);
-      await client.sendMessage(message.from, media);
-    });
+    );
   }
 });
 
-// Start the client
+const client = new Client({
+  authStrategy: new LocalAuth(),
+  puppeteer: {
+    headless: true,
+    args: ['--no-sandbox', '--disable-setuid-sandbox'],
+  },
+});
+
+client.on('qr', (qr) => {
+  qrcode.generate(qr, { small: true });
+  console.log('QR Code generated, scan it with WhatsApp.');
+});
+
+client.on('ready', () => {
+  console.log('WhatsApp bot is ready!');
+});
+
+client.on('message', async (message) => {
+  console.log(`Message received: ${message.body}`);
+
+  if (message.body.toLowerCase().startsWith('/plate')) {
+    const plateNumber = message.body.substring(6).trim().toUpperCase();
+
+    if (!plateNumber) {
+      message.reply(
+        'Please provide a plate number after /plate command. Example: /plate ABC123'
+      );
+      return;
+    }
+
+    // Search in CARMDI table
+    db.get(
+      `SELECT * FROM CARMDI WHERE ActualNB = ?`,
+      [plateNumber],
+      (err, row) => {
+        if (err) {
+          console.error('Database error:', err);
+          message.reply('Error searching the vehicle database.');
+          return;
+        }
+
+        if (row) {
+          // Format the response with all relevant fields
+          const response = `
+🚗 *Vehicle Registration Details* 🚗
+📌 *Plate Number:* ${row.ActualNB || 'N/A'}
+📅 *Production Date:* ${row.PRODDATE || 'N/A'}
+🛠️ *Chassis:* ${row.Chassis || 'N/A'}
+🔧 *Engine:* ${row.Moteur || 'N/A'}
+🎨 *Color:* ${row.CouleurDesc || 'N/A'}
+🏷️ *Brand:* ${row.MarqueDesc || 'N/A'}
+🚘 *Type:* ${row.TypeDesc || 'N/A'}
+👥 *Usage:* ${row.UtilisDesc || 'N/A'}
+
+👤 *Owner Information*
+🧑 *Name:* ${row.Prenom || 'N/A'} ${row.Nom || 'N/A'}
+🏠 *Address:* ${row.Addresse || 'N/A'}
+📞 *Phone:* ${row.TelProp || 'N/A'}
+🆔 *Reg Number:* ${row.NoRegProp || 'N/A'}
+🎂 *Age:* ${row.AgeProp || 'N/A'}
+📍 *Birth Place:* ${row.BirthPlace || 'N/A'}
+
+📅 *Acquisition Date:* ${row.dateaquisition || 'N/A'}
+🚦 *First Circulation:* ${row.PreMiseCirc || 'N/A'}
+⚠️ *Out of Service:* ${row.HorsService ? 'Yes' : 'No'}
+          `;
+          message.reply(response);
+        } else {
+          message.reply(`No vehicle found with plate number: ${plateNumber}`);
+        }
+      }
+    );
+  }
+});
+
 client.initialize();
