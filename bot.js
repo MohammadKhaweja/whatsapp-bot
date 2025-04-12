@@ -53,22 +53,34 @@ client.on('message', async (message) => {
       return;
     }
 
-    // Search in CARMDI table
-    db.get(
-      `SELECT * FROM CARMDI WHERE ActualNB = ?`,
+    // Search in CARMDI table for all matching records
+    db.all(
+      `SELECT * FROM CARMDI WHERE ActualNB = ? ORDER BY CodeDesc`,
       [plateNumber],
-      (err, row) => {
+      (err, rows) => {
         if (err) {
           console.error('Database error:', err);
           message.reply('Error searching the vehicle database.');
           return;
         }
 
-        if (row) {
-          // Format the response with all relevant fields
-          const response = `
-🚗 *Vehicle Registration Details* 🚗
-📌 *Plate Number:* ${row.ActualNB || 'N/A'}
+        if (rows && rows.length > 0) {
+          let response = `🚗 *Vehicle Registration Details* 🚗\n`;
+          response += `📌 *Plate Number:* ${plateNumber}\n\n`;
+
+          // Group by CodeDesc if there are multiple records
+          if (rows.length > 1) {
+            response += `ℹ️ *Note:* This plate has ${rows.length} records with different codes:\n\n`;
+          }
+
+          rows.forEach((row, index) => {
+            if (rows.length > 1) {
+              response += `📋 *Record ${index + 1} (Code: ${
+                row.CodeDesc || 'N/A'
+              })*\n`;
+            }
+
+            response += `
 📅 *Production Date:* ${row.PRODDATE || 'N/A'}
 🛠️ *Chassis:* ${row.Chassis || 'N/A'}
 🔧 *Engine:* ${row.Moteur || 'N/A'}
@@ -88,7 +100,14 @@ client.on('message', async (message) => {
 📅 *Acquisition Date:* ${row.dateaquisition || 'N/A'}
 🚦 *First Circulation:* ${row.PreMiseCirc || 'N/A'}
 ⚠️ *Out of Service:* ${row.HorsService ? 'Yes' : 'No'}
-          `;
+            `;
+
+            // Add separator if there are more records
+            if (index < rows.length - 1) {
+              response += '\n────────────────────\n';
+            }
+          });
+
           message.reply(response);
         } else {
           message.reply(`No vehicle found with plate number: ${plateNumber}`);
